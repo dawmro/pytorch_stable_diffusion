@@ -4,7 +4,52 @@ from torch.nn import functional as F
 from attention import SelfAttention
 
 
+class VAE_AttentionBlock(nn.Module):
+    def __init__(self, channels: int):
+        super().__init__()
+        self.groupnorm = nn.GroupNorm(32, channels)
+        self.attention = SelfAttention(1, channels)
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Store the original input for the residual connection
+        residual = x
+        
+        # Extract dimensions from input tensor
+        # Shape: (Batch_Size, Channels, Height, Width)
+        n, c, h, w = x.shape
+        
+        # Reshape for self-attention:
+        # 1. Flatten spatial dimensions (Height, Width) into a single dimension
+        # From: (Batch_Size, Channels, Height, Width)
+        # To:   (Batch_Size, Channels, Height*Width)
+        x = x.view((n, c, h * w))
+        
+        # 2. Transpose to prepare for self-attention
+        # Self-attention expects shape: (Batch_Size, Sequence_Length, Features)
+        # From: (Batch_Size, Channels, Height*Width)
+        # To:   (Batch_Size, Height*Width, Channels)
+        x = x.transpose(-1, -2)
+        
+        # Apply self-attention to capture global dependencies
+        # This allows each spatial position to attend to all other positions
+        # Shape remains: (Batch_Size, Height*Width, Channels)
+        x = self.attention(x)
+        
+        # Reverse the transposition to restore channel-first format
+        # From: (Batch_Size, Height*Width, Channels)
+        # To:   (Batch_Size, Channels, Height*Width)
+        x = x.transpose(-1, 2)
+        
+        # Reshape back to original 4D tensor format
+        # From: (Batch_Size, Channels, Height*Width)
+        # To:   (Batch_Size, Channels, Height, Width)
+        x = x.view((n, c, h, w))
+        
+        # Add residual connection to help with gradient flow
+        # This preserves original features while adding attention-enhanced features
+        x += residual
+        
+        return x
 
 
 class VAE_ResidualBlock(nn.Module):
