@@ -6,7 +6,50 @@ from decoder import VAE_AttentionBlock, VAE_ResidualBlock
 # https://ezyang.github.io/convolution-visualizer/
 
 class VAE_Encoder(nn.Sequential):
+    """
+    Variational Autoencoder (VAE) Encoder for Stable Diffusion.
+    
+    This encoder compresses images into a latent representation by progressively
+    reducing spatial dimensions while increasing feature depth. It implements a
+    hierarchical downsampling architecture that transforms the input image into
+    a compact latent space through a series of operations:
+    
+    1. Initial feature extraction and expansion
+    2. Multiple residual blocks for feature refinement
+    3. Progressive downsampling to reduce spatial dimensions
+    4. Channel expansion as spatial dimensions decrease
+    5. Attention mechanisms to capture global dependencies
+    6. Final projection to latent space with mean and variance parameters
+    
+    The architecture follows a U-Net-like structure with skip connections (residual blocks)
+    that help preserve fine details during compression. The encoder is designed to
+    work in conjunction with the VAE decoder to enable efficient image compression
+    and reconstruction in the Stable Diffusion pipeline.
+    
+    The encoder outputs both mean and variance parameters for each latent dimension,
+    which are used to sample from the latent space during generation. This probabilistic
+    approach allows the model to learn a continuous, structured latent space that
+    captures the underlying distribution of the training data.
+    
+    The scaling factor of 0.18215 is used to normalize the latent space and is derived
+    from the KL divergence term in the VAE loss function. This helps with training
+    stability and ensures the latent space follows a standard normal distribution.
+    
+    Attributes:
+        All layers are defined in the Sequential constructor and include:
+        - Convolutional layers for feature transformation and downsampling
+        - Residual blocks for feature refinement
+        - Attention blocks for capturing global dependencies
+        - Group normalization for training stability
+        - SiLU activation for non-linearity
+    """
     def __init__(self):
+        """
+        Initialize the VAE Encoder architecture.
+        
+        The encoder progressively transforms an image into a latent representation
+        through a series of downsampling and feature refinement operations.
+        """
         # sequence of submodules, each reduces dimensions of data, but increases depth
         super().__init__(
             # (Batch size, Channel, Height, Width) -> (Batch size, 128, Height, Width)
@@ -50,6 +93,22 @@ class VAE_Encoder(nn.Sequential):
         )
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the VAE Encoder.
+        
+        This method takes an input image and noise tensor, processes the image through
+        the encoder layers, and then applies the reparameterization trick to sample
+        from the latent space.
+        
+        Args:
+            x (torch.Tensor): Input image tensor of shape (Batch_Size, 3, Height, Width)
+            noise (torch.Tensor): Random noise tensor of shape (Batch_Size, 4, Height/8, Width/8)
+                used for sampling from the latent space
+                
+        Returns:
+            torch.Tensor: Sampled latent representation of shape (Batch_Size, 4, Height/8, Width/8)
+                that can be used by the decoder for image reconstruction
+        """
         # x: (Batch size, Channel, Height, Width)
         # noise: (Batch size, Out Channel, Height/8, Width/8)
 
