@@ -4,6 +4,82 @@ import torch.nn.functional as F
 from attention import SelfAttention, CrossAttention
 
 
+
+class TimeEmbedding(nn.Module):
+    """
+    Time embedding module for diffusion models.
+    
+    This module encodes time steps (noise levels) into high-dimensional embeddings
+    that condition the denoising process. It follows a standard architecture:
+    
+    1. Initial projection to a higher-dimensional space (4x expansion)
+    2. Non-linear activation (SiLU/Swish)
+    3. Final projection in the expanded space
+    
+    The expanded embedding dimension provides richer representation capacity for
+    encoding the noise level information, which helps the model better condition
+    its denoising process based on the current time step.
+    
+    Attributes:
+        linear_1 (nn.Linear): First projection layer that expands the embedding dimension
+        linear_2 (nn.Linear): Second projection layer in the expanded space
+    """
+    def __init__(self, n_embed: int):
+        """
+        Initialize the time embedding module.
+        
+        Args:
+            n_embed (int): Base embedding dimension, which will be expanded to 4*n_embed
+                internally for richer representation
+        """
+        super().__init__()
+        # First projection layer that expands the embedding dimension by a factor of 4
+        # This provides richer representation capacity for encoding time information
+        self.linear_1 = nn.Linear(n_embed, 4 * n_embed)
+        
+        # Second projection layer that operates in the expanded space
+        # This allows for more complex transformations of the time information
+        self.linear_2 = nn.Linear(4 * n_embed, 4 * n_embed)
+
+    def forward(self, x):
+        """
+        Forward pass through the time embedding module.
+        
+        This method processes time step information through a series of
+        linear projections and non-linear activations to produce a rich
+        embedding that conditions the denoising process.
+        
+        Args:
+            x (torch.Tensor): Time step tensor of shape (Batch_Size, n_embed)
+                representing the noise level to be encoded
+                
+        Returns:
+            torch.Tensor: Time embedding of shape (Batch_Size, 4*n_embed)
+                that provides rich conditioning information for the denoising process
+        """
+        # Input tensor shape: (Batch_Size, n_embed)
+        # First projection expands the embedding dimension by a factor of 4
+        # From: (Batch_Size, n_embed)
+        # To:   (Batch_Size, 4*n_embed)
+        x = self.linear_1(x)
+        
+        # Apply SiLU/Swish activation function
+        # This non-linearity helps capture complex relationships in the time information
+        # From: (Batch_Size, 4*n_embed)
+        # To:   (Batch_Size, 4*n_embed)
+        x = F.silu(x)
+        
+        # Second projection in the expanded space
+        # This allows for more complex transformations of the time information
+        # From: (Batch_Size, 4*n_embed)
+        # To:   (Batch_Size, 4*n_embed)
+        x = self.linear_2(x)
+        
+        # Return the final time embedding
+        # Shape: (Batch_Size, 4*n_embed)
+        return x
+
+
 class Diffusion(nn.Module):
     """
     Diffusion model for image generation in Stable Diffusion.
