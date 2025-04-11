@@ -80,6 +80,63 @@ class TimeEmbedding(nn.Module):
         return x
 
 
+class SwitchSequential(nn.Sequential):
+    """
+    A specialized sequential container for U-Net layers with conditional processing.
+    
+    This class extends PyTorch's Sequential container to handle different types of
+    layers in a U-Net architecture. It intelligently routes inputs to each layer
+    based on the layer type, passing the appropriate additional context:
+    
+    1. For attention blocks: Passes the latent representation and text embeddings
+    2. For residual blocks: Passes the latent representation and time embeddings
+    3. For standard layers: Passes only the latent representation
+    
+    This design allows for a clean, modular U-Net architecture where different
+    types of layers can be easily combined while ensuring each receives the
+    appropriate inputs for its operation.
+    
+    This pattern is commonly used in transformer and U-Net architectures to
+    handle the different types of conditioning information that various layers
+    need to process.
+    """
+    def forward(self, x: torch.Tensor, context: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the sequential layers with conditional routing.
+        
+        This method processes the input through each layer in sequence, but
+        intelligently routes the inputs based on the layer type. This allows
+        different types of layers to receive the appropriate additional context
+        they need for their operation.
+        
+        Args:
+            x (torch.Tensor): The latent representation to be processed
+            context (torch.Tensor): Text embeddings from CLIP for attention layers
+            time (torch.Tensor): Time embeddings for residual layers
+            
+        Returns:
+            torch.Tensor: The processed latent representation after passing through
+                all layers with appropriate conditioning
+        """
+        # Process each layer in the sequence in order
+        for layer in self:
+            # Route inputs based on layer type
+            if isinstance(layer, UNET_AttentionBlock):
+                # Attention blocks need both the latent and text embeddings
+                # to compute cross-attention between them
+                x = layer(x, context)
+            elif isinstance(layer, UNET_ResidualBlock):
+                # Residual blocks need both the latent and time embeddings
+                # to condition the residual connection on the time step
+                x = layer(x, time)
+            else:
+                # Standard layers (like convolutions) only need the latent
+                # representation without additional context
+                x = layer(x)
+        
+        return x
+
+
 class Diffusion(nn.Module):
     """
     Diffusion model for image generation in Stable Diffusion.
