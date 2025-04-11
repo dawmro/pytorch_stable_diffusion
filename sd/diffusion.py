@@ -80,6 +80,135 @@ class TimeEmbedding(nn.Module):
         return x
 
 
+class UNET_ResidualBlock(nn.Module):
+    """
+    Residual block for U-Net architecture with time conditioning.
+    
+    This module implements a residual block that processes feature maps while being
+    conditioned on time information. It consists of two main branches:
+    
+    1. Feature Branch: Processes the input features through normalization, activation,
+       and convolution to extract meaningful patterns.
+    
+    2. Time Branch: Processes the time embedding through activation and linear projection
+       to condition the feature processing based on the current noise level.
+    
+    The outputs of these branches are merged, processed further, and combined with a
+    residual connection to the input. This design allows the network to learn both
+    feature-specific transformations and time-dependent adjustments.
+    
+    The residual connection is implemented as either an identity mapping (when input
+    and output channels match) or a 1x1 convolution (when channel dimensions differ).
+    
+    Attributes:
+        groupnorm_feature (nn.GroupNorm): Normalization layer for input features
+        conv_feature (nn.Conv2d): Convolution layer for feature processing
+        linear_time (nn.Linear): Linear projection for time embedding
+        groupnorm_merged (nn.GroupNorm): Normalization layer for merged features
+        conv_merged (nn.Conv2d): Convolution layer for merged features
+        residual_layer (nn.Module): Either identity or 1x1 convolution for residual connection
+    """
+    def __init__(self, in_channels: int, out_channels: int, n_time=1280):
+        """
+        Initialize the residual block with time conditioning.
+        
+        Args:
+            in_channels (int): Number of input channels for the feature maps
+            out_channels (int): Number of output channels for the feature maps
+            n_time (int, optional): Dimension of the time embedding. Defaults to 1280.
+        """
+        super().__init__()
+        # Feature processing branch
+        # Group normalization with 32 groups for feature normalization
+        self.groupnorm_feature = nn.GroupNorm(32, in_channels)
+        # 3x3 convolution for feature processing
+        self.conv_feature = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        
+        # Time processing branch
+        # Linear projection to match the feature channel dimension
+        self.linear_time = nn.Linear(n_time, out_channels)
+        
+        # Merged feature processing
+        # Group normalization for the merged features
+        self.groupnorm_merged = nn.GroupNorm(32, out_channels)
+        # 3x3 convolution for the merged features
+        self.conv_merged = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        
+        # Residual connection
+        if in_channels == out_channels:
+            # When input and output channels match, use identity mapping
+            self.residual_layer = nn.Identity()
+        else:
+            # When channels differ, use 1x1 convolution to match dimensions
+            self.residual_layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+
+    def forward(self, feature, time):
+        """
+        Forward pass through the residual block with time conditioning.
+        
+        This method processes the input features while conditioning on time information.
+        It applies a series of transformations to both the features and time embedding,
+        merges them, and adds a residual connection to the input.
+        
+        Args:
+            feature (torch.Tensor): Input feature maps of shape 
+                (Batch_Size, In_Channels, Height, Width)
+            time (torch.Tensor): Time embedding of shape (1, n_time)
+                representing the current noise level
+                
+        Returns:
+            torch.Tensor: Processed feature maps of shape 
+                (Batch_Size, Out_Channels, Height, Width)
+        """
+
+        # feature: (Batch_Size, In_Channels, Height, Width)
+        # time: (1, 1280)
+
+        # Store the input for the residual connection
+        residual = feature
+        
+        # Process the feature branch
+        # Normalize the features
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, In_Channels, Height, Width)
+        feature = self.groupnorm_feature(feature)
+        # Apply SiLU activation for non-linearity
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, In_Channels, Height, Width)
+        feature = F.silu(feature)
+        # Project to the output channel dimension
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        feature = self.conv_feature(feature)
+        
+        # Process the time branch
+        # Apply SiLU activation to the time embedding
+        # (1, 1280) -> (1, 1280)
+        time = F.silu(time)
+        # Project to match the feature channel dimension
+        # (1, 1280) -> (1, Out_Channels)
+        time = self.linear_time(time)
+        
+        # Merge the feature and time branches
+        # Time is a 1D tensor, doesn't have batch and channel dimension, so we need to add 2 dimensions to it
+        # Add spatial dimensions to the time tensor for broadcasting
+        # This allows the time information to condition each spatial location
+        # (Batch_Size, Out_Channels, Height, Width) + (1, Out_Channels, 1, 1) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = feature + time.unsqueeze(-1).unsqueeze(-1)
+        
+        # Process the merged features
+        # Normalize the merged features
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = self.groupnorm_merged(merged)
+        # Apply SiLU activation for non-linearity
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = F.silu(merged)
+        # Apply final convolution
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = self.conv_merged(merged)
+        
+        # Add the residual connection and return
+        # (Batch_Size, Out_Channels, Height, Width) + (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        return merged + self.residual_layer(residual)
+
+
 class Upsample(nn.Module):
     """
     Upsampling module that doubles the spatial dimensions of feature maps.
