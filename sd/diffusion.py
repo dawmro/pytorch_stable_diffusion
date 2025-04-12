@@ -209,6 +209,178 @@ class UNET_ResidualBlock(nn.Module):
         return merged + self.residual_layer(residual)
 
 
+class UNET_AttentionBlock(nn.Module):
+    """
+    Attention block for U-Net architecture that processes spatial features with self-attention and cross-attention.
+    
+    This module implements a sophisticated attention mechanism that combines self-attention
+    (to capture relationships within the feature map) and cross-attention (to condition
+    on external context, such as text embeddings). The architecture follows a transformer-like
+    design with residual connections and normalization layers.
+    
+    The block consists of three main stages:
+    1. Self-attention: Captures relationships between different spatial positions in the feature map
+    2. Cross-attention: Conditions the features on external context (e.g., text embeddings)
+    3. Feed-forward network: Processes the attended features with a GeGLU activation
+    
+    Each stage includes normalization layers and residual connections to stabilize training
+    and preserve information flow. The spatial dimensions are temporarily reshaped to treat
+    spatial positions as a sequence, allowing the attention mechanisms to capture long-range
+    dependencies across the image.
+    
+    Attributes:
+        groupnorm (nn.GroupNorm): Initial normalization layer for the input features
+        conv_input (nn.Conv2d): 1x1 convolution for initial feature processing
+        layernorm_1 (nn.LayerNorm): Normalization before self-attention
+        attention_1 (SelfAttention): Self-attention mechanism for capturing spatial relationships
+        layernorm_2 (nn.LayerNorm): Normalization before cross-attention
+        attention_2 (CrossAttention): Cross-attention mechanism for conditioning on context
+        layernorm_3 (nn.LayerNorm): Normalization before feed-forward network
+        linear_geglu_1 (nn.Linear): First linear layer for GeGLU activation
+        linear_geglu_2 (nn.Linear): Second linear layer for GeGLU activation
+        conv_output (nn.Conv2d): 1x1 convolution for final feature processing
+    """
+    def __init__(self, n_head: int, n_embed: int, d_context=768):
+        """
+        Initialize the U-Net attention block.
+        
+        Args:
+            n_head (int): Number of attention heads
+            n_embed (int): Embedding dimension per head
+            d_context (int, optional): Dimension of the context embeddings. Defaults to 768.
+        """
+        super().__init__()
+        channels = n_head * n_embed
+
+        self.groupnorm = nn.GroupNorm(32, channels, eps=1e-6)
+        self.conv_input = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
+
+        self.layernorm_1 = nn.LayerNorm(channels)
+        self.attention_1 = SelfAttention(n_head, channels, in_proj_bias=False)
+
+        self.layernorm_2 = nn.LayerNorm(channels)
+        self.attention_2 = CrossAttention(n_head, channels, d_context, in_proj_bias=False)
+
+        self.layernorm_3 = nn.LayerNorm(channels)
+
+        self.linear_geglu_1 = nn.Linear(channels, 4 * channels * 2)
+        self.linear_geglu_2 = nn.Linear(4 * channels, channels)
+
+        self.conv_output = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
+
+    def forward(self, x, context):
+        """
+        Forward pass through the attention block.
+        
+        This method processes the input features through a series of attention mechanisms
+        and transformations, with residual connections at each stage. The spatial dimensions
+        are temporarily reshaped to treat spatial positions as a sequence, allowing the
+        attention mechanisms to capture long-range dependencies.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape (Batch_Size, Features, Height, Width)
+            context (torch.Tensor): Context tensor of shape (Batch_Size, Sequence_Length, Dimension)
+                used for cross-attention conditioning
+                
+        Returns:
+            torch.Tensor: Processed tensor of shape (Batch_Size, Features, Height, Width)
+        """
+        # Store the input for the final residual connection
+        residual_long = x
+
+        # Stage 1: Initial feature normalization and processing
+        # Apply group normalization to stabilize the features
+        # (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height, Width)
+        x = self.groupnorm(x)
+        
+        # Apply 1x1 convolution for initial feature processing
+        # (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height, Width)
+        x = self.conv_input(x)
+
+        # Extract tensor dimensions for reshaping operations
+        n, c, h, w = x.shape
+
+        # Reshape the tensor to treat spatial positions as a sequence
+        # This allows the attention mechanisms to capture relationships between different spatial positions
+        # Transpose to be able to apply the self-attention
+        # (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height * Width)
+        x = x.view((n, c, h * w))
+        x = x.transpose(-1, -2)
+
+        # Stage 2: Self-attention with residual connection
+        # Store the input for the residual connection
+        # (Batch_Size, Height * Width, Features)
+        residual_short = x
+        
+        # Apply layer normalization before self-attention
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x = self.layernorm_1(x)
+        
+        # Apply self-attention to capture relationships between spatial positions
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x = self.attention_1(x)
+        
+        # Add the residual connection to preserve information flow
+        # (Batch_Size, Height * Width, Features) + (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x += residual_short 
+
+        # Stage 3: Cross-attention with residual connection
+        # Store the input for the residual connection
+        # (Batch_Size, Height * Width, Features)
+        residual_short = x
+        
+        # Apply layer normalization before cross-attention
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x = self.layernorm_2(x)
+        
+        # Apply cross-attention to condition on the external context
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x = self.attention_2(x, context)
+        
+        # Add the residual connection to preserve information flow
+        # (Batch_Size, Height * Width, Features) + (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x += residual_short
+
+        # Stage 4: Feed-forward network with GeGLU activation and residual connection
+        # Store the input for the residual connection
+        # (Batch_Size, Height * Width, Features)
+        residual_short = x
+        
+        # Apply layer normalization before the feed-forward network
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x = self.layernorm_3(x)
+
+        # Apply GeGLU activation (Gated GELU)
+        # This splits the output of the first linear layer into two parts:
+        # one for the main path and one for the gating mechanism
+        # GeGLU as implemented in the original code: 
+        # https://github.com/CompVis/stable-diffusion/blob/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/ldm/modules/attention.py#L37C10-L37C10
+        # (Batch_Size, Height * Width, Features) -> two tensors of shape (Batch_Size, Height * Width, Features * 4)
+        x, gate = self.linear_geglu_1(x).chunk(2, dim=-1) 
+        
+        # Apply the second linear layer to project back to the original dimension
+        # (Batch_Size, Height * Width, Features * 4) -> (Batch_Size, Height * Width, Features)
+        x = self.linear_geglu_2(x)
+        
+        # Add the residual connection to preserve information flow
+        # (Batch_Size, Height * Width, Features) + (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
+        x += residual_short
+        
+        # Restore the original spatial dimensions
+        # Transpose back to the original shape
+        # (Batch_Size, Height * Width, Features) -> (Batch_Size, Features, Height * Width)
+        x = x.transpose(-1, -2)
+        
+        # Reshape back to the original 4D tensor
+        # (Batch_Size, Features, Height * Width) -> (Batch_Size, Features, Height, Width)
+        x = x.view((n, c, h, w))
+
+        # Apply the final 1x1 convolution and add the long residual connection
+        # Final skip connection between initial input and output of the block
+        # (Batch_Size, Features, Height, Width) + (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height, Width)
+        return self.conv_output(x) + residual_long
+
+
 class Upsample(nn.Module):
     """
     Upsampling module that doubles the spatial dimensions of feature maps.
