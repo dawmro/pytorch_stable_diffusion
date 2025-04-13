@@ -313,6 +313,48 @@ def rescale(x, old_range, new_range, clamp=False):
         
     return x
 
+
+def get_time_embedding(timestep):
+    """
+    Generate sinusoidal positional embeddings for diffusion timesteps.
+    
+    This function creates a time embedding vector for a given diffusion timestep using
+    sinusoidal positional encoding, similar to the positional embeddings used in transformers.
+    The embedding captures the timestep information in a way that preserves relative
+    distances between timesteps and allows the model to learn temporal dependencies.
+    
+    The function follows these steps:
+    1. Generate frequency bands using an exponential decay
+    2. Multiply the timestep by these frequencies
+    3. Apply sine and cosine functions to create the embedding
+    4. Concatenate the sine and cosine components
+    
+    This approach allows the model to better understand the noise level at each timestep
+    and adjust its denoising strategy accordingly.
+    
+    Args:
+        timestep (int): The diffusion timestep to generate embeddings for
+        
+    Returns:
+        torch.Tensor: A tensor of shape (1, 320) containing the time embedding
+        
+    Note:
+        The output dimension is 320 because it concatenates 160 sine and 160 cosine values.
+    """
+    # Generate frequency bands using exponential decay
+    # These frequencies determine how quickly the sine/cosine waves oscillate
+    # Shape: (160,) - 160 different frequency bands
+    freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32) / 160) 
+    
+    # Multiply the timestep by each frequency to create phase-shifted values
+    # Shape: (1, 160) - One timestep × 160 frequencies
+    x = torch.tensor([timestep], dtype=torch.float32)[:, None] * freqs[None]
+    
+    # Apply sine and cosine functions and concatenate the results
+    # This creates a rich representation of the timestep that preserves relative distances
+    # Shape: (1, 320) - Concatenated sine and cosine values (160 + 160)
+    return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
+
         
         
         
