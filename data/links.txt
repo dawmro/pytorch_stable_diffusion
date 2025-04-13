@@ -1,0 +1,6 @@
+https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/tree/main
+File: v1-5-pruned-emaonly.ckpt
+
+https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/tree/main/tokenizer
+File: merges.txt
+File: vocab.json

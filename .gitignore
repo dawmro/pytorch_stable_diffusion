@@ -172,3 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+data/merges.txt
+data/vocab.json
+data/v1-5-pruned-emaonly.ckpt
