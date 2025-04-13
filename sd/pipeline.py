@@ -267,6 +267,52 @@ def generate(
         
         # Return the first (and only) image
         return images[0]
+
+
+def rescale(x, old_range, new_range, clamp=False):
+    """
+    Rescale tensor values from one range to another.
+    
+    This utility function performs linear rescaling of tensor values from one range to another.
+    It's commonly used in image processing to convert between different value ranges, such as
+    from [0, 255] to [-1, 1] for neural network inputs, or from [-1, 1] to [0, 255] for image outputs.
+    
+    The rescaling is performed using the formula:
+        x_new = (x_old - old_min) * (new_max - new_min) / (old_max - old_min) + new_min
+    
+    Args:
+        x (torch.Tensor): Input tensor to be rescaled
+        old_range (tuple): Tuple of (old_min, old_max) defining the current range of values
+        new_range (tuple): Tuple of (new_min, new_max) defining the desired range of values
+        clamp (bool, optional): Whether to clamp the output to the new range. Defaults to False.
+        
+    Returns:
+        torch.Tensor: Rescaled tensor with values in the new range
+        
+    Example:
+        >>> x = torch.tensor([0, 128, 255])
+        >>> rescale(x, (0, 255), (-1, 1))
+        tensor([-1.0000,  0.0000,  1.0000])
+    """
+    # Extract the minimum and maximum values from the ranges
+    old_min, old_max = old_range
+    new_min, new_max = new_range
+    
+    # Shift the values to start from zero
+    x -= old_min
+    
+    # Scale the values to the new range
+    x *= (new_max - new_min) / (old_max - old_min)
+    
+    # Shift the values to the new minimum
+    x += new_min
+    
+    # Optionally clamp the values to ensure they stay within the new range
+    if clamp:
+        x = x.clamp(new_min, new_max)
+        
+    return x
+
         
         
         
