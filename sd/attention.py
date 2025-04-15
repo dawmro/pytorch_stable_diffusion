@@ -22,7 +22,7 @@ class SelfAttention(nn.Module):
         # Dimension of each attention head
         # Total embedding dimension is divided among the heads
         # Shape per head: (d_embed // n_heads)
-        self.d_embed = d_embed // n_heads
+        self.d_head = d_embed // n_heads
 
     def forward(self, x, causal_mask: bool = False):
         # Input shape: (Batch_Size, Sequence_Length, Embedding_Dimension)
@@ -30,11 +30,11 @@ class SelfAttention(nn.Module):
         
         # Store original shape for later reshaping
         input_shape = x.shape
-        batch_size, sequence_length, d_embed = input_shape
+        batch_size, sequence_length, self.d_embed = input_shape
 
         # Shape for multi-head attention
         # (Batch_Size, Sequence_Length, Num_Heads, Embedding_Dimension/Num_Heads)
-        interim_shape = (batch_size, sequence_length, self.n_heads, self.d_embed)
+        interim_shape = (batch_size, sequence_length, self.n_heads, self.d_head)
 
         # Project input to query, key, and value matrices
         # 1. Linear projection: (Batch_Size, Sequence_Length, Embedding_Dimension) -> (Batch_Size, Sequence_Length, Embedding_Dimension*3)
