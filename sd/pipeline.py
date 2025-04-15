@@ -70,13 +70,6 @@ def generate(
         ValueError: If sampler_name is not supported
     """
     with torch.no_grad():
-        # Validate input parameters
-        if not isinstance(prompt, (list, tuple)) or not prompt:
-            raise ValueError("Prompt must be a non-empty list or tuple")
-        
-        # check if uncond_prompt exists and is a non-empty list or tuple
-        if uncond_prompt and not isinstance(uncond_prompt, (list, tuple)):
-            raise ValueError("Unconditional prompt must be a non-empty list or tuple")
 
         # check if strength is between 0 and 1
         if not 0 < strength <= 1:
