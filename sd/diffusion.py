@@ -766,7 +766,7 @@ class Diffusion(nn.Module):
     
     Attributes:
         time_embedding (TimeEmbedding): Module that encodes time steps into embeddings
-        unet (UNet): U-Net architecture for noise prediction
+        unet (UNET): U-Net architecture for noise prediction
         final (UNET_OutputLayer): Final projection layer to match input dimensions
     """
     def __init__(self):
@@ -784,7 +784,7 @@ class Diffusion(nn.Module):
         
         # U-Net architecture for processing the noisy latent representation
         # and predicting the noise to be removed
-        self.unet = UNet()
+        self.unet = UNET()
         
         # Final projection layer that maps the U-Net output back to the
         # original latent space dimension (4 channels)
