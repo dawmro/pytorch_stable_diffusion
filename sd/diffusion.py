@@ -473,6 +473,10 @@ class SwitchSequential(nn.Sequential):
             torch.Tensor: The processed latent representation after passing through
                 all layers with appropriate conditioning
         """
+        # debug
+        # print("Context shape:", context.shape)  # Check if context is actually passed
+        # print("Time shape:", time.shape) # Check if time is actually passed
+
         # Process each layer in the sequence in order
         for layer in self:
             # Route inputs based on layer type
@@ -572,11 +576,11 @@ class UNET(nn.Module):
 
         self.bottleneck = SwitchSequential(
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            SwitchSequential(UNET_ResidualBlock(1280, 1280)),
+            UNET_ResidualBlock(1280, 1280),
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            SwitchSequential(UNET_AttentionBlock(8, 160)),
+            UNET_AttentionBlock(8, 160),
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            SwitchSequential(UNET_ResidualBlock(1280, 1280)),
+            UNET_ResidualBlock(1280, 1280),
         )
 
         self.decoders = nn.ModuleList([
