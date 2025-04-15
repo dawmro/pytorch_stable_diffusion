@@ -31,9 +31,9 @@ class CLIPEmbedding(nn.Module):
     def __init__(self, vocab_size: int, embedding_dim: int, max_seq_length: int):
         super().__init__()
         # A learnable weight matrix encodes the token information for each token
-        self.token_embedding_table = nn.Embedding(vocab_size, embedding_dim)
+        self.token_embedding = nn.Embedding(vocab_size, embedding_dim)
         # A learnable weight matrix encodes the position information for each token
-        self.positional_embedding_table = nn.Parameter(torch.zeros((max_seq_length, embedding_dim)))
+        self.position_embedding = nn.Parameter(torch.zeros((max_seq_length, embedding_dim)))
 
     def forward(self, tokens: torch.LongTensor) -> torch.FloatTensor:
         """
@@ -55,12 +55,12 @@ class CLIPEmbedding(nn.Module):
         # Convert token indices to dense embeddings
         # From: (Batch_Size, Sequence_Length)
         # To:   (Batch_Size, Sequence_Length, Embedding_Dimension)
-        x = self.token_embedding_table(tokens)
+        x = self.token_embedding(tokens)
         # Add positional embeddings to the token embeddings 
         # From: (Batch_Size, Sequence_Length)
         # To:   (Batch_Size, Sequence_Length, Embedding_Dimension)
-        # x += self.positional_embedding_table(torch.arange(len(tokens)))
-        x += self.positional_embedding_table 
+        # x += self.positional_embedding(torch.arange(len(tokens)))
+        x += self.position_embedding 
         
 
         return x
