@@ -94,9 +94,9 @@ class VAE_ResidualBlock(nn.Module):
     help address the vanishing gradient problem and allow for training of very deep networks.
     
     Attributes:
-        groupnorm1 (nn.GroupNorm): First group normalization layer
+        groupnorm_1 (nn.GroupNorm): First group normalization layer
         conv_1 (nn.Conv2d): First convolution layer
-        groupnorm2 (nn.GroupNorm): Second group normalization layer
+        groupnorm_2 (nn.GroupNorm): Second group normalization layer
         conv_2 (nn.Conv2d): Second convolution layer
         residual_layer (nn.Module): Layer for transforming input channels if needed
     """
@@ -104,7 +104,7 @@ class VAE_ResidualBlock(nn.Module):
         super().__init__()
         # First group normalization layer - normalizes across groups of 32 channels
         # This helps with training stability and reduces internal covariate shift
-        self.groupnorm1 = nn.GroupNorm(32, in_channels)
+        self.groupnorm_1 = nn.GroupNorm(32, in_channels)
         
         # First convolution layer - transforms input channels to output channels
         # kernel_size=3 with padding=1 maintains spatial dimensions
@@ -113,7 +113,7 @@ class VAE_ResidualBlock(nn.Module):
 
         # Second group normalization layer - normalizes the output of first convolution
         # Uses same group size (32) but for out_channels
-        self.groupnorm2 = nn.GroupNorm(32, out_channels)
+        self.groupnorm_2 = nn.GroupNorm(32, out_channels)
         
         # Second convolution layer - maintains the number of channels
         # This layer refines the features further
@@ -154,7 +154,7 @@ class VAE_ResidualBlock(nn.Module):
         # First transformation block:
         # 1. Group Normalization - normalizes across groups of 32 channels
         #    This helps with training stability and reduces internal covariate shift
-        x = self.groupnorm1(x)
+        x = self.groupnorm_1(x)
         
         # 2. SiLU (Swish) activation - f(x) = x * sigmoid(x)
         #    This is a smooth, non-linear activation that helps with training
@@ -168,7 +168,7 @@ class VAE_ResidualBlock(nn.Module):
         # Second transformation block:
         # 1. Group Normalization - normalizes the features after first convolution
         #    Helps maintain stable feature distributions
-        x = self.groupnorm2(x)
+        x = self.groupnorm_2(x)
         
         # 2. SiLU activation - applies non-linearity again
         #    Helps the network learn more complex patterns
