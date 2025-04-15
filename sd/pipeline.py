@@ -244,13 +244,13 @@ def generate(
         decoder.to(device)
 
         # Decode the final latents into an image by running them through decoder
-        image = decoder(latents)
+        images = decoder(latents)
 
         # Move decoder to idle device to free up memory
         to_idle(decoder)
 
         # Rescale pixel values from [-1, 1] to [0, 255]
-        image = rescale(image, (-1, 1), (0, 255), clamp=True)
+        images = rescale(images, (-1, 1), (0, 255), clamp=True)
 
         # Rearrange dimensions to (Batch, Height, Width, Channels) for image saving on cpu, channel dimension should be last
         images = images.permute(0, 2, 3, 1)
