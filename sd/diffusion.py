@@ -550,7 +550,7 @@ class UNET(nn.Module):
             SwitchSequential(UNET_ResidualBlock(320, 320), UNET_AttentionBlock(8, 40)),
             # reduce size of image by 2
             # (Batch_Size, 320, Height / 8, Width / 8) -> (Batch_Size, 320, Height / 16, Width / 16)
-            SwitchSequential(nn.Conv2d(320, 320, kernel_size=3, padding=1)),
+            SwitchSequential(nn.Conv2d(320, 320, kernel_size=3, stride=2, padding=1)),
             # (Batch_Size, 320, Height / 16, Width / 16) -> (Batch_Size, 640, Height / 16, Width / 16) -> (Batch_Size, 640, Height / 16, Width / 16)
             # 8: head, 80: embedding size
             SwitchSequential(UNET_ResidualBlock(320, 640), UNET_AttentionBlock(8, 80)),
@@ -558,7 +558,7 @@ class UNET(nn.Module):
             SwitchSequential(UNET_ResidualBlock(640, 640), UNET_AttentionBlock(8, 80)),
             # reduce size of image by 2
             # (Batch_Size, 640, Height / 16, Width / 16) -> (Batch_Size, 640, Height / 32, Width / 32)
-            SwitchSequential(nn.Conv2d(640, 640, kernel_size=3, padding=1)),
+            SwitchSequential(nn.Conv2d(640, 640, kernel_size=3, stride=2, padding=1)),
             # (Batch_Size, 640, Height / 32, Width / 32) -> (Batch_Size, 1280, Height / 32, Width / 32) -> (Batch_Size, 1280, Height / 32, Width / 32)
             # 8: head, 160: embedding size
             SwitchSequential(UNET_ResidualBlock(640, 1280), UNET_AttentionBlock(8, 160)),
@@ -566,7 +566,7 @@ class UNET(nn.Module):
             SwitchSequential(UNET_ResidualBlock(1280, 1280), UNET_AttentionBlock(8, 160)),
             # reduce size of image by 2
             # (Batch_Size, 1280, Height / 32, Width / 32) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            SwitchSequential(nn.Conv2d(1280, 1280, kernel_size=3, padding=1)),
+            SwitchSequential(nn.Conv2d(1280, 1280, kernel_size=3, stride=2, padding=1)),
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
             SwitchSequential(UNET_ResidualBlock(1280, 1280)),
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
